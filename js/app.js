@@ -983,6 +983,11 @@ function bind() {
     const file = event.dataTransfer?.files?.[0];
     if (file) await importFile(file);
   });
+  document.addEventListener('contextmenu', (event) => {
+    if (state.view !== 'study' || (state.mode !== 'read' && state.mode !== 'mark')) return;
+    if (!event.target.closest?.('.sheet, #hl-pop')) return;
+    event.preventDefault();
+  });
   document.addEventListener('mouseup', (event) => {
     if (event.target.closest?.('#hl-pop')) return;
     if (state.view !== 'study' || (state.mode !== 'read' && state.mode !== 'mark')) return;
