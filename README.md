@@ -22,7 +22,6 @@ node server.mjs
 
 再開啟終端機印出的網址，例如 `http://127.0.0.1:5173`。不要直接雙擊 `index.html`，瀏覽器會擋住教材檔。
 
-編寫教材用的是 EURD 既有的 Markdown 工具（`vendor/urd-markdown.js`，來自 `FUNC/js/urd-markdown.js`），工具列、插入與預覽都沒有另外重寫。按下儲存後，同一份內容會變成墨習的筆記、考卷、錯題本和家教教材。這支檔案的授權以 EURD 為準，墨習的 MIT 授權不含它。
 
 檢查題目解析：
 
