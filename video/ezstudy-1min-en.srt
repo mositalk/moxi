@@ -1,0 +1,36 @@
+1
+00:00:00,600 --> 00:00:07,920
+This is eZstudy. It turns any handout into a study space that grades you, quizzes you, and helps you review.
+
+2
+00:00:08,420 --> 00:00:16,508
+There's plenty of study material, but once a test is graded, it gets filed away. Mistakes are never collected, so they repeat.
+
+3
+00:00:17,008 --> 00:00:24,472
+eZstudy's idea is simple: one Markdown file is your notes, your test, your mistake log, and your AI tutor's material.
+
+4
+00:00:24,972 --> 00:00:30,516
+Read, mark, write, check, fix, and practice, all in one document.
+
+5
+00:00:31,016 --> 00:00:35,360
+If you can type, you can write a test. Answers are graded instantly.
+
+6
+00:00:35,860 --> 00:00:41,260
+The AI tutor works on the scope and skill you pick, then saves the results back into your notes.
+
+7
+00:00:41,760 --> 00:00:46,272
+Teachers publish study folders, and students import them in one click.
+
+8
+00:00:46,772 --> 00:00:52,316
+Your data stays yours. Export to PDF or Word, and practice on your phone.
+
+9
+00:00:52,816 --> 00:00:59,152
+Our vision: every student gets an AI tutor that knows their own material. Try eZstudy today!
+

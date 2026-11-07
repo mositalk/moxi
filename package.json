@@ -1,0 +1,14 @@
+{
+  "name": "moxi",
+  "version": "1.0.0",
+  "description": "一份 Markdown，就是一整套學習工具。HackDay 個人化學習作品。",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+video/_build/
+video/_build_en/

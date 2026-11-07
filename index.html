@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>墨習 — 一份 Markdown，一整套學習工具</title>
+  <meta name="description" content="HackDay 個人化學習作品。同一份 Markdown 同時是筆記、考卷、錯題本和家教教材。">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,560;1,9..144,680&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/urd-editor.css">
+</head>
+<body class="is-home">
+  <header class="top">
+    <button type="button" id="home-btn" class="brand">
+      <svg class="logo" viewBox="0 0 36 36" aria-hidden="true">
+        <rect width="36" height="36" rx="10" fill="#2a2448"/>
+        <rect x="9" y="7" width="14" height="18" rx="2" fill="#fffdf8"/>
+        <path d="M16 7h5l2 2v2h-7z" fill="#d9d4ff"/>
+        <circle cx="24" cy="24" r="6" fill="#6d5efc"/>
+      </svg>
+      <span class="wordmark">墨習 <em>Moxi</em></span>
+    </button>
+    <p id="doc-title">HackDay · 打造個人化學習</p>
+    <nav class="modes" aria-label="學習工具">
+      <button type="button" data-mode="read">筆記講義</button>
+      <button type="button" data-mode="mark">螢光筆</button>
+      <button type="button" data-mode="quiz">直接作答</button>
+      <button type="button" data-mode="grade">自動批改</button>
+      <button type="button" data-mode="wrong">錯題本</button>
+      <button type="button" data-mode="tutor">AI 家教</button>
+    </nav>
+    <div class="doc-tools">
+      <button type="button" id="edit-doc" class="ghost" hidden>編輯這份</button>
+      <button type="button" id="toggle-source" class="ghost" hidden>看 Markdown</button>
+    </div>
+    <button type="button" id="open-settings" class="ghost">設定</button>
+  </header>
+
+  <div class="workspace">
+    <aside id="library" class="panel">
+      <div class="lib-head">
+        <strong>文件庫</strong>
+        <button type="button" data-act="compose">新增</button>
+      </div>
+      <input id="lib-search" type="search" placeholder="搜尋標題、標籤或內容" autocomplete="off">
+      <div class="lib-filters" role="tablist">
+        <button type="button" data-lib="all" class="is-on">全部</button>
+        <button type="button" data-lib="demo">示範</button>
+        <button type="button" data-lib="mine">我的</button>
+      </div>
+      <div id="library-list"></div>
+    </aside>
+    <main id="view">
+      <p class="loading">正在打開教材…</p>
+    </main>
+    <aside id="side" class="panel"></aside>
+  </div>
+
+  <div id="hl-pop" hidden>
+    <button type="button" data-hl="gold">黃</button>
+    <button type="button" data-hl="mint">綠</button>
+    <button type="button" data-hl="rose">粉</button>
+  </div>
+  <div id="toast" hidden role="status"></div>
+  <input id="file-input" type="file" accept=".md,.txt,.markdown,text/markdown,text/plain" hidden>
+
+  <dialog id="settings">
+    <form>
+      <h2>學習設定</h2>
+      <p class="hint">名稱、作答、畫記和 API 金鑰只留在這台瀏覽器，不會寫進教材檔。</p>
+      <label>怎麼稱呼你 <input id="set-name" maxlength="20" placeholder="可留白"></label>
+      <label>今天的題數目標 <input id="set-goal" type="number" min="1" max="100"></label>
+      <fieldset>
+        <legend>選用：接上自己的模型</legend>
+        <label>API 位址 <input id="set-base" placeholder="https://api.openai.com/v1"></label>
+        <label>模型名稱 <input id="set-model" placeholder="gpt-4o-mini"></label>
+        <label>API 金鑰 <input id="set-key" type="password" autocomplete="off" placeholder="留白就用本機家教"></label>
+        <p class="hint">沒有金鑰也能用。本機家教會引用這份 Markdown 的筆記、答案和解析。金鑰若要送到模型，只會送到你填的位址。</p>
+      </fieldset>
+      <div class="dialog-actions">
+        <button type="button" id="clear-data" class="danger">清除這台的學習紀錄</button>
+        <span class="spacer"></span>
+        <button type="button" id="close-settings" class="ghost">關閉</button>
+        <button type="button" id="save-settings">儲存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="editor" class="editor-dialog">
+    <div class="urd-md-popup-wrap">
+      <div class="urd-md-wrap">
+        <div class="urd-md-toolbar" id="moxi_md_toolbar">
+          <button type="button" class="urd-md-popup-save-btn" id="moxi-md-save">💾 儲存</button>
+          <button type="button" class="urd-md-btn" id="moxi-md-close">關閉</button>
+          <span id="moxi_md_status" class="urd-md-status"></span>
+          <span class="urd-md-toolbar-sep"></span>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="heading-toggle" title="插入標題">H</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="heading-1">H1 大標題</div>
+              <div class="urd-md-uml-item" data-md-act="heading-2">H2 標題</div>
+              <div class="urd-md-uml-item" data-md-act="heading-3">H3 小標題</div>
+            </div>
+          </div>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="fmt-toggle" title="文字格式">A</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="fmt-bold"><b>粗體</b></div>
+              <div class="urd-md-uml-item" data-md-act="fmt-italic"><i>斜體</i></div>
+              <div class="urd-md-uml-item" data-md-act="fmt-strike"><s>刪除線</s></div>
+              <div class="urd-md-uml-item" data-md-act="fmt-inline-code">行內程式碼</div>
+            </div>
+          </div>
+          <button type="button" class="urd-md-btn" data-md-act="blockquote" title="引用">❝ 引用</button>
+          <button type="button" class="urd-md-btn" data-md-act="hr" title="水平分隔線">― 分隔線</button>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="list-toggle" title="插入清單">☰ List</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="list-ul">• 無序清單</div>
+              <div class="urd-md-uml-item" data-md-act="list-ol">1. 有序清單</div>
+              <div class="urd-md-uml-item" data-md-act="list-check">☐ 核取清單</div>
+              <div class="urd-md-uml-item" data-md-act="list-check-done">☑ 已核取清單</div>
+            </div>
+          </div>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="link-toggle" title="插入連結">🔗 Link</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="link-external">🔗 外部連結</div>
+              <div class="urd-md-uml-item" data-md-act="link-anchor">⚓ 頁內錨點</div>
+              <div class="urd-md-uml-item" data-md-act="link-auto">🌐 自動連結</div>
+              <div class="urd-md-uml-item" data-md-act="link-email">✉ Email 連結</div>
+              <div class="urd-md-uml-item" data-md-act="link-image">🖼 圖片</div>
+              <div class="urd-md-uml-item" data-md-act="link-image-link">🖼🔗 圖片帶連結</div>
+              <div class="urd-md-uml-item" data-md-act="link-ref">📎 參考式連結</div>
+              <div class="urd-md-uml-item" data-md-act="link-footnote">📝 腳注</div>
+            </div>
+          </div>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="code-toggle" title="插入程式碼區塊">⌨ Code</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="code-text">text 純文字</div>
+              <div class="urd-md-uml-item" data-md-act="code-sql">SQL</div>
+              <div class="urd-md-uml-item" data-md-act="code-javascript">JavaScript</div>
+              <div class="urd-md-uml-item" data-md-act="code-html">HTML</div>
+              <div class="urd-md-uml-item" data-md-act="code-css">CSS</div>
+              <div class="urd-md-uml-item" data-md-act="code-python">Python</div>
+              <div class="urd-md-uml-item" data-md-act="code-bash">Bash / Shell</div>
+              <div class="urd-md-uml-item" data-md-act="code-json">JSON</div>
+              <div class="urd-md-uml-item" data-md-act="code-xml">XML</div>
+              <div class="urd-md-uml-item" data-md-act="code-java">Java</div>
+              <div class="urd-md-uml-item" data-md-act="code-csharp">C#</div>
+              <div class="urd-md-uml-item" data-md-act="code-php">PHP</div>
+              <div class="urd-md-uml-item" data-md-act="code-vbscript">VBScript / ASP</div>
+            </div>
+          </div>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="table-toggle" title="插入表格">⊞ Table</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="table-2-2">2 欄 × 2 列</div>
+              <div class="urd-md-uml-item" data-md-act="table-3-2">3 欄 × 2 列</div>
+              <div class="urd-md-uml-item" data-md-act="table-3-3">3 欄 × 3 列</div>
+              <div class="urd-md-uml-item" data-md-act="table-4-3">4 欄 × 3 列</div>
+              <div class="urd-md-uml-item" data-md-act="table-4-4">4 欄 × 4 列</div>
+              <div class="urd-md-uml-item" data-md-act="table-5-4">5 欄 × 4 列</div>
+            </div>
+          </div>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="uml-toggle" title="插入 Mermaid 圖">📈 Mermaid</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="mermaid">空白 Mermaid</div>
+              <div class="urd-md-uml-has-sub">
+                <div class="urd-md-uml-item" data-md-act="flowchart-sub-toggle">流程圖<span class="urd-seq-arrow"> ▶</span></div>
+                <div class="urd-md-uml-sub">
+                  <div class="urd-md-uml-item" data-md-act="uml-flowchart-basic-td">基本決策 (上下)</div>
+                  <div class="urd-md-uml-item" data-md-act="uml-flowchart-basic-lr">基本決策 (左右)</div>
+                  <div class="urd-md-uml-item" data-md-act="uml-flowchart-login">登入驗證</div>
+                  <div class="urd-md-uml-item" data-md-act="uml-flowchart-subgraph">子圖分組</div>
+                </div>
+              </div>
+              <div class="urd-md-uml-has-sub">
+                <div class="urd-md-uml-item" data-md-act="sequence-sub-toggle">序列圖<span class="urd-seq-arrow"> ▶</span></div>
+                <div class="urd-md-uml-sub">
+                  <div class="urd-md-uml-item" data-md-act="uml-sequence-basic">基本序列圖</div>
+                  <div class="urd-md-uml-item" data-md-act="uml-sequence-multi">多角色流程</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="urd-md-uml-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="mindmap-toggle" title="插入 Mermaid 心智圖">🗺 Mindmap</button>
+            <div class="urd-md-uml-dropdown" style="display:none;">
+              <div class="urd-md-uml-item" data-md-act="uml-mindmap-claude-guide">Claude 提示指南（完整）</div>
+              <div class="urd-md-uml-item" data-md-act="uml-mindmap-simple">簡易三層結構</div>
+              <div class="urd-md-uml-item" data-md-act="uml-mindmap-project">專案規劃</div>
+              <div class="urd-md-uml-item" data-md-act="uml-mindmap-meeting">會議／腦力激盪</div>
+              <div class="urd-md-uml-item" data-md-act="uml-mindmap-tech-stack">技術棧架構</div>
+            </div>
+          </div>
+          <div class="urd-md-icon-picker-wrap">
+            <button type="button" class="urd-md-btn" data-md-act="icon-picker-toggle" title="插入圖示">😀</button>
+            <div class="urd-md-icon-picker-popup" style="display:none;"></div>
+          </div>
+          <button type="button" class="urd-md-btn" data-md-act="copy-md" title="複製全部代碼">📋 複製</button>
+          <button type="button" class="urd-md-btn" data-md-act="clear-md" title="清除全部代碼">🗑 清除</button>
+          <span class="urd-md-tools-spacer"></span>
+          <button type="button" class="urd-md-btn" id="moxi-md-full" title="全視窗編輯">全視窗</button>
+          <button type="button" class="urd-md-btn urd-layout-btn" data-md-act="left-only" title="僅顯示編輯">編輯</button>
+          <button type="button" class="urd-md-btn urd-layout-btn" data-md-act="both" title="左右顯示">左右</button>
+          <button type="button" class="urd-md-btn urd-layout-btn" data-md-act="right-only" title="僅顯示預覽">預覽</button>
+        </div>
+        <div class="urd-md-body">
+          <textarea id="moxi_md_input" class="urd-md-input" spellcheck="false" placeholder="用上面的工具列編寫。空格、(A)(B) 或問號的編號會被墨習認成題目。"></textarea>
+          <iframe id="moxi_md_preview" class="urd-md-preview" title="Markdown 預覽"></iframe>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="vendor/urd-markdown.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <noscript>墨習需要 JavaScript。請用瀏覽器開啟，並以 py server.py 或 node server.mjs 提供網頁。</noscript>
+</body>
+</html>
