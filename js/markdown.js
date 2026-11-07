@@ -8,9 +8,29 @@ export function esc(value) {
   }[ch]));
 }
 
+function renderMath(tex, display) {
+  const source = String(tex || '').trim();
+  if (typeof katex !== 'undefined' && katex.renderToString) {
+    try {
+      return katex.renderToString(source, { throwOnError: false, displayMode: display });
+    } catch {
+      return `<span class="math">${esc(source)}</span>`;
+    }
+  }
+  return `<span class="math${display ? ' is-display' : ''}">${esc(source)}</span>`;
+}
+
 export function inline(raw) {
+  const maths = [];
+  let src = String(raw ?? '').replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
+    maths.push(renderMath(tex, true));
+    return `\u0001${maths.length - 1}\u0001`;
+  }).replace(/\$([^$\n]+?)\$/g, (_, tex) => {
+    maths.push(renderMath(tex, false));
+    return `\u0001${maths.length - 1}\u0001`;
+  });
   const codes = [];
-  let text = esc(raw).replace(/`([^`]+)`/g, (_, code) => {
+  let text = esc(src).replace(/`([^`]+)`/g, (_, code) => {
     codes.push(code);
     return `\u0000${codes.length - 1}\u0000`;
   });
@@ -18,6 +38,7 @@ export function inline(raw) {
   text = text.replace(/_{2,}|＿{2,}/g, '<span class="gap"></span>');
   text = text.replace(/(^|[\s（(])\*([^*\n]+)\*/g, '$1<em>$2</em>');
   text = text.replace(/\u0000(\d+)\u0000/g, (_, index) => `<code>${codes[index]}</code>`);
+  text = text.replace(/\u0001(\d+)\u0001/g, (_, index) => maths[index]);
   return text;
 }
 

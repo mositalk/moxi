@@ -4,8 +4,8 @@ const ANSWER_KEY_RE = /^#{1,6}\s*(解答|答案卷|答案|Answers?|Answer\s*Key)
 const ANSWER_RE = /^(?:>\s*)?(?:答案|正解|Answer)\s*[:：]\s*(.*)$/i;
 const EXPLAIN_RE = /^(?:>\s*)?(?:解析|說明|Explanation)\s*[:：]\s*(.*)$/i;
 const KEYWORD_RE = /^(?:>\s*)?關鍵詞\s*[:：]\s*(.+)$/i;
-const OPT_LINE_RE = /^(?:>\s*)?(?:\(([A-Da-d])\)|（([A-Da-d])）|([A-Da-d])[.、．)）])\s+(\S.*)$/;
-const BULLET_OPT_RE = /^[-*]\s+(?:\(([A-Da-d])\)|（([A-Da-d])）)\s+(\S.*)$/;
+const OPT_LINE_RE = /^(?:>\s*)?(?:\(([A-Da-d1-5])\)|（([A-Da-d1-5])）|([A-Da-d])[.、．)）])\s*(\S.*)$/;
+const BULLET_OPT_RE = /^[-*]\s+(?:\(([A-Da-d1-5])\)|（([A-Da-d1-5])）)\s*(\S.*)$/;
 const BLANK_RE = /_{2,}|＿{2,}/;
 
 function plain(text) {
@@ -20,18 +20,32 @@ function cleanAnswer(text) {
     .trim();
 }
 
+function maskMath(line) {
+  const spans = [];
+  const masked = String(line).replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$/g, (chunk) => {
+    spans.push(chunk);
+    return `\u0000${spans.length - 1}\u0000`;
+  });
+  return { masked, spans };
+}
+
+function unmask(text, spans) {
+  return text.replace(/\u0000(\d+)\u0000/g, (_, index) => spans[index]);
+}
+
 function pullInlineOptions(line) {
-  const re = /(?:\(([A-Da-d])\)|（([A-Da-d])）)\s*([^()（）]*?)(?=\s*(?:\([A-Da-d]\)|（[A-Da-d]）)|$)/g;
+  const { masked, spans } = maskMath(line);
+  const re = /(?:\(([A-Da-d1-5])\)|（([A-Da-d1-5])）)\s*([\s\S]*?)(?=\s*(?:\([A-Da-d1-5]\)|（[A-Da-d1-5]）)|$)/g;
   const options = [];
   let match;
-  while ((match = re.exec(line))) {
-    const text = (match[3] || '').trim().replace(/[。．.]+\s*$/g, '');
+  while ((match = re.exec(masked))) {
+    const text = unmask((match[3] || '').trim(), spans).replace(/[。．.]+\s*$/g, '');
     if (!text) continue;
     options.push({ key: (match[1] || match[2]).toUpperCase(), text });
   }
   if (options.length < 2) return { rest: line, options: [] };
-  const index = line.search(/\([A-Da-d]\)|（[A-Da-d]）/);
-  return { rest: line.slice(0, index).trim(), options };
+  const index = masked.search(/\([A-Da-d1-5]\)|（[A-Da-d1-5]）/);
+  return { rest: unmask(masked.slice(0, index), spans).trim(), options };
 }
 
 function looksLikeQuestion(lines, index) {
@@ -124,10 +138,10 @@ function consumeQuestion(lines, start, section) {
     else break;
   }
 
-  let stem = stemParts.join('\n').trim();
+  let stem = stemParts.join('\n').trim().replace(/\*{0,2}\s*\$?\\boxed\{[^}]*\}\$?\s*\*{0,2}/g, '____');
   const blanks = stem.match(new RegExp(BLANK_RE, 'g'))?.length || 0;
   let type = 'short';
-  if (options.length >= 2) type = 'mcq';
+  if (options.length >= 2) type = /多選|可複選/.test(`${section}\n${stem}`) ? 'multi' : 'mcq';
   else if (blanks > 0) type = 'cloze';
   else if (/[（(][\s　]*[）)]/.test(stem)) {
     stem = stem.replace(/^[（(][\s　]*[）)]\s*/, '');
@@ -152,6 +166,14 @@ function cellsOf(line) {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
 }
 
+function normalizeKeyAnswer(raw) {
+  const text = cleanAnswer(raw).replace(/\$/g, '').trim();
+  if (text === '全選') return '全選';
+  const choices = [...text.matchAll(/[（(]\s*([1-5A-Da-d])\s*[）)]/g)].map((item) => item[1].toUpperCase());
+  if (choices.length) return choices.join(',');
+  return text;
+}
+
 function parseKeyLines(lines) {
   const map = {};
   const ensure = (num) => {
@@ -163,21 +185,27 @@ function parseKeyLines(lines) {
     if (!trimmed || /^<\/?(details|summary)\b/i.test(trimmed)) continue;
     if (trimmed.includes('|')) {
       const cells = cellsOf(trimmed);
-      if (cells[0] === '題號') {
+      if (cells[0] === '題號' || /^(單選|多選|選填)$/.test(cells[0] || '')) {
         for (let j = i + 1; j < lines.length && j <= i + 3; j += 1) {
           if (!lines[j].includes('|')) continue;
           const row = cellsOf(lines[j]);
-          if (row[0] !== '答案') continue;
+          const named = cells[0] === '題號' ? row[0] === '答案' : !row[0];
+          if (!named) continue;
           for (let c = 1; c < cells.length; c += 1) {
-            if (/^\d+$/.test(cells[c] || '') && row[c]) ensure(cells[c]).answer = cleanAnswer(row[c]);
+            if (/^\d+$/.test(cells[c] || '') && row[c]) ensure(cells[c]).answer = normalizeKeyAnswer(row[c]);
           }
         }
         continue;
       }
       if (/^\d+$/.test(cells[0] || '') && cells[1] && !/^[-:]+$/.test(cells[1])) {
         const slot = ensure(cells[0]);
-        if (!slot.answer) slot.answer = cleanAnswer(cells[1]);
-        if (!slot.explanation && cells[2]) slot.explanation = cells[2].trim();
+        const points = /^\d+$/.test(cells[1]) && /分/.test(cells[2] || '');
+        if (points) {
+          if (!slot.explanation && cells[2]) slot.explanation = cells[2].trim();
+        } else {
+          if (!slot.answer) slot.answer = cleanAnswer(cells[1]);
+          if (!slot.explanation && cells[2]) slot.explanation = cells[2].trim();
+        }
       }
       continue;
     }
@@ -224,6 +252,9 @@ function applyKeys(questions, maps) {
       const hit = map[question.number];
       if (!hit) continue;
       if (!question.answer) question.answer = hit.answer;
+      if (question.answer === '全選' && question.options.length) {
+        question.answer = question.options.map((option) => option.key).join(',');
+      }
       if (!question.explanation && hit.explanation) question.explanation = hit.explanation;
     }
   }

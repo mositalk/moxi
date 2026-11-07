@@ -5,6 +5,8 @@ import { emptyStore, loadStore, localDate, saveStore, streak, todayCount } from 
 import { replyTo } from './tutor.js';
 
 const BUILTINS = [
+  { id: 'math2', file: 'samples/math-g1-ch2.md', chapter: 'math2', role: '教材', quizId: 'math2-quiz' },
+  { id: 'math2-quiz', file: 'samples/math-g1-ch2-quiz.md', chapter: 'math2', role: '測驗卷', lessonId: 'math2' },
   { id: 'codex1', file: 'samples/codex-ch1.md', chapter: 'codex1', role: '教材', quizId: 'codex1-quiz' },
   { id: 'codex1-quiz', file: 'samples/codex-ch1-quiz.md', chapter: 'codex1', role: '測驗卷', lessonId: 'codex1' },
   { id: 'slide', file: 'samples/slide.md' },
@@ -13,7 +15,11 @@ const BUILTINS = [
   { id: 'rhythm', file: 'samples/rhythm.md' },
 ];
 
-const TYPE_LABEL = { mcq: '選擇題', cloze: '填空', short: '簡答' };
+const TYPE_LABEL = { mcq: '選擇題', multi: '複選', cloze: '填空', short: '簡答' };
+const CHAPTERS = [
+  ['高一數學 第二章', 'math2'],
+  ['Codex 第1章', 'codex1'],
+];
 const SATELLITES = [
   { mode: 'read', label: '筆記講義', angle: 0 },
   { mode: 'quiz', label: '直接作答', angle: 60 },
@@ -140,12 +146,13 @@ function stemHtml(question, interactive, value) {
 
 function optionsHtml(question, value, interactive) {
   if (question.options.length < 2) return '';
+  const multi = question.type === 'multi';
   return `<div class="options">${question.options.map((option) => {
-    const picked = value === option.key;
+    const picked = multi ? Array.isArray(value) && value.includes(option.key) : value === option.key;
     if (!interactive) {
       return `<p class="opt is-static"><span class="key">${option.key}</span><span>${inline(option.text)}</span></p>`;
     }
-    return `<label class="opt${picked ? ' is-picked' : ''}"><input type="radio" name="q-${question.id}" data-qid="${question.id}" value="${option.key}"${picked ? ' checked' : ''}><span class="key">${option.key}</span><span>${inline(option.text)}</span></label>`;
+    return `<label class="opt${picked ? ' is-picked' : ''}"><input type="${multi ? 'checkbox' : 'radio'}" name="q-${question.id}" data-qid="${question.id}" value="${option.key}"${picked ? ' checked' : ''}><span class="key">${option.key}</span><span>${inline(option.text)}</span></label>`;
   }).join('')}</div>`;
 }
 
@@ -225,10 +232,12 @@ function renderLibrary() {
   if (!list) return;
   const query = state.libQuery.trim().toLowerCase();
   const mineAll = state.docs.filter((item) => !item.builtin && !item.virtual);
-  const chapter = state.builtins.filter((doc) => doc.chapter === 'codex1' && docMatches(doc, query));
-  const demo = state.builtins.filter((doc) => doc.chapter !== 'codex1' && docMatches(doc, query));
+  const chapterIds = new Set(CHAPTERS.map(([, id]) => id));
+  const chapterGroups = CHAPTERS.map(([label, id]) => [label, state.builtins.filter((doc) => doc.chapter === id && docMatches(doc, query)), 'demo']);
+  const demo = state.builtins.filter((doc) => !chapterIds.has(doc.chapter) && docMatches(doc, query));
   const mine = mineAll.filter((doc) => docMatches(doc, query));
-  const counts = { all: chapter.length + demo.length + mine.length, demo: chapter.length + demo.length, mine: mine.length };
+  const chapterCount = chapterGroups.reduce((sum, [, docs]) => sum + docs.length, 0);
+  const counts = { all: chapterCount + demo.length + mine.length, demo: chapterCount + demo.length, mine: mine.length };
   document.querySelectorAll('[data-lib]').forEach((button) => {
     const key = button.dataset.lib;
     button.classList.toggle('is-on', key === state.libFilter);
@@ -236,7 +245,7 @@ function renderLibrary() {
     button.textContent = `${label} ${counts[key]}`;
   });
   const groups = [
-    ['Codex 第1章', chapter, 'demo'],
+    ...chapterGroups,
     ['示範教材', demo, 'demo'],
     ['我的教材', mine, 'mine'],
   ].filter(([, docs, key]) => (state.libFilter === 'all' || state.libFilter === key) && (docs.length || key === 'mine'));
@@ -255,6 +264,20 @@ function renderLibrary() {
   }).join('');
   const empty = query && !counts.all ? '<p class="hint">沒有符合的檔案。</p>' : '';
   list.innerHTML = `${body}${empty}<button type="button" class="solid" data-act="browse">開啟 .md</button>`;
+}
+
+function plainOutline(text) {
+  return String(text)
+    .replace(/\$\$?([^$]+)\$\$?/g, ' $1 ')
+    .replace(/\\neq?\b/g, '≠')
+    .replace(/\\le\b/g, '≤')
+    .replace(/\\ge\b/g, '≥')
+    .replace(/\\times\b/g, '×')
+    .replace(/\\[a-zA-Z]+/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/[*_`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function renderSide() {
@@ -288,7 +311,7 @@ function renderSide() {
   for (const block of parsed.blocks) {
     if (block.kind !== 'note') continue;
     const heading = block.raw.match(/^#{2,3}\s+(.+)$/m);
-    if (heading) outline.push(heading[1].replace(/[*_`]/g, '').trim());
+    if (heading) outline.push(heading[1].replace(/[*_`~]/g, '').trim());
   }
   const marks = state.data.marks[doc.id] || [];
   side.innerHTML = `
@@ -300,7 +323,7 @@ function renderSide() {
     ${doc.quizId ? `<button type="button" data-mode="quiz" data-doc="${doc.quizId}">做測驗卷</button>` : ''}
     ${doc.lessonId ? `<button type="button" data-mode="read" data-doc="${doc.lessonId}">看教材</button>` : ''}
     ${nextButtons(doc, docWrongs, submission)}
-    ${outline.length ? `<p class="kicker">段落</p><ul class="outline">${outline.map((item) => `<li><button type="button" data-goto="${esc(item)}">${esc(item)}</button></li>`).join('')}</ul>` : ''}
+    ${outline.length ? `<p class="kicker">段落</p><ul class="outline">${outline.map((item) => `<li><button type="button" data-goto="${esc(item)}">${esc(plainOutline(item))}</button></li>`).join('')}</ul>` : ''}
     ${state.mode === 'mark' ? `<p class="kicker">這份畫記</p>${marks.length ? `<ul class="mark-list">${marks.map((mark) => `<li><span class="clip">${esc(mark.text)}</span><button type="button" class="icon-btn" data-del-mark="${mark.id}" aria-label="移除畫記">×</button></li>`).join('')}</ul>` : '<p class="hint">選取一句話，再選顏色。點畫記可以刪掉。</p>'}` : ''}
   `;
 }
@@ -347,6 +370,8 @@ function renderHome() {
         <h1>一份 Markdown，就是一整套學習工具</h1>
         <p class="lead">同一份檔案同時是筆記、考卷、解答和家教的教材。寫成空格或 (A)(B)，系統就認得是題目。錯題會再變回一份 Markdown。</p>
         <div class="hero-actions">
+          <button type="button" data-doc="math2" data-mode="read">高一數學第二章教材</button>
+          <button type="button" data-doc="math2-quiz" data-mode="quiz">第二章測驗卷</button>
           <button type="button" data-doc="codex1" data-mode="read">Codex 第1章教材</button>
           <button type="button" data-doc="codex1-quiz" data-mode="quiz">第1章測驗卷</button>
           <button type="button" data-doc="slide" data-mode="read">看投影片同款寫法</button>
@@ -719,6 +744,12 @@ function onAnswer(target) {
     bag[qid] = current;
   } else if (target.dataset.short != null) {
     bag[qid] = target.value;
+  } else if (target.type === 'checkbox') {
+    const selected = [...target.closest('.options').querySelectorAll('input:checked')].map((input) => input.value);
+    bag[qid] = selected;
+    target.closest('.options')?.querySelectorAll('.opt').forEach((label) => {
+      label.classList.toggle('is-picked', Boolean(label.querySelector('input')?.checked));
+    });
   } else if (target.type === 'radio') {
     bag[qid] = target.value;
     target.closest('.options')?.querySelectorAll('.opt').forEach((label) => {

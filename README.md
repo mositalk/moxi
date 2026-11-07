@@ -88,4 +88,4 @@ git commit -m "建立墨習：一份 Markdown 同時成為筆記、考卷與家�
 gh repo create moxi --public --source=. --remote=origin --push
 ```
 
-內建教材在 `samples/`，都是自撰短文，不是教科書課文。
+內建教材在 `samples/`。短文示範是自撰。Codex 第1章與高一數學第二章是另外放進文件庫的教材和測驗卷。

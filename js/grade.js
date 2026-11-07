@@ -4,6 +4,7 @@ export function norm(value) {
     .toLowerCase()
     .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
     .replace(/\s+/g, '')
+    .replace(/\$/g, '')
     .replace(/[。．.，,、！!？?：:；;「」"'“”‘’()（）]/g, '');
 }
 
@@ -21,10 +22,10 @@ export function resolveMcq(question) {
   const raw = String(question.answer || '').trim();
   if (!raw) return '';
   const compact = raw.replace(/[()（）.\s。．]/g, '');
-  if (/^[A-DXOa-dxo]$/.test(compact)) return compact.toUpperCase();
+  if (/^[A-DXOa-dxo1-5]$/.test(compact)) return compact.toUpperCase();
   const exact = question.options.find((option) => norm(option.text) === norm(raw));
   if (exact) return exact.key;
-  const lead = raw.match(/^\s*[（(]?([A-Da-d])(?:[）)]|[.、．:：])/);
+  const lead = raw.match(/^\s*[（(]?([A-Da-d1-5])(?:[）)]|[.、．:：])/);
   if (lead) return lead[1].toUpperCase();
   const spaced = raw.match(/^\s*([A-Da-d])\s+\S/);
   if (spaced) return spaced[1].toUpperCase();
@@ -58,7 +59,16 @@ function asList(value) {
   return [value ?? ''];
 }
 
+function choiceSet(value) {
+  const parts = Array.isArray(value) ? value : String(value || '').split(/[,，、\s]+/);
+  return parts
+    .map((item) => String(item).replace(/[()（）$]/g, '').trim().toUpperCase())
+    .filter(Boolean)
+    .sort();
+}
+
 export function expectedLabel(question) {
+  if (question.type === 'multi') return question.answer ? question.answer.split(',').join('、') : '（沒有標準答案）';
   if (question.type === 'mcq') {
     const letter = resolveMcq(question);
     const option = question.options.find((item) => item.key === letter);
@@ -69,8 +79,13 @@ export function expectedLabel(question) {
 
 export function userLabel(question, value) {
   if (isEmpty(value)) return '（未作答）';
+  if (question.type === 'multi') {
+    const keys = choiceSet(value);
+    if (!keys.length) return '（未作答）';
+    return keys.join('、');
+  }
   if (question.type === 'mcq') {
-    const letter = String(value).trim().toUpperCase().match(/^[A-DXO]$/)?.[0]
+    const letter = String(value).trim().toUpperCase().match(/^[A-DXO1-5]$/)?.[0]
       || String(value).trim().toUpperCase().match(/[A-D]/)?.[0]
       || String(value).trim();
     const option = question.options.find((item) => item.key === letter);
@@ -94,10 +109,20 @@ export function judge(question, value) {
   if (isEmpty(value)) {
     return { status: 'wrong', userLabel: '（未作答）', expectedLabel: expectedLabel(question) };
   }
+  if (question.type === 'multi') {
+    const want = choiceSet(question.answer);
+    const got = choiceSet(value);
+    const same = want.length > 0 && want.length === got.length && want.every((item, index) => item === got[index]);
+    return {
+      status: same ? 'correct' : 'wrong',
+      userLabel: userLabel(question, value),
+      expectedLabel: expectedLabel(question),
+    };
+  }
   if (question.type === 'mcq') {
     const want = resolveMcq(question);
     const rawGot = String(Array.isArray(value) ? value[0] : value).trim().toUpperCase();
-    const got = rawGot.match(/^[A-DXO]$/)?.[0] || rawGot.match(/[A-D]/)?.[0] || '';
+    const got = rawGot.match(/^[A-DXO1-5]$/)?.[0] || rawGot.match(/[A-D]/)?.[0] || '';
     if (!want) return { status: 'ungraded', userLabel: userLabel(question, value), expectedLabel: question.answer };
     return {
       status: want === got ? 'correct' : 'wrong',

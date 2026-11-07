@@ -260,6 +260,7 @@ body.is-home .modes { display: none; }
 .prose h1 { font-size: 32px; margin: 0 0 8px; }
 .prose h2 { font-size: 22px; margin: 28px 0 8px; }
 .prose p, .prose li { line-height: 1.75; }
+.katex-display { margin: 0.6em 0; overflow-x: auto; overflow-y: hidden; }
 .prose code { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; }
 .gap {
   display: inline-block;

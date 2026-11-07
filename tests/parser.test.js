@@ -31,6 +31,38 @@ test('Codex 第1章測驗卷：選擇、是非與橫向答案表', () => {
   assert.equal(lessonNotes.includes('1. 能夠用自己的話說明 Codex'), true);
 });
 
+test('高一數學第二章：數字選項、複選、空格與答案表', () => {
+  const doc = parseDocument(readSample('math-g1-ch2-quiz.md'));
+  assert.equal(doc.questions.length, 29);
+  const first = doc.questions[0];
+  assert.equal(first.type, 'mcq');
+  assert.equal(first.answer, '3');
+  assert.deepEqual(first.options.map((item) => item.key), ['1', '2', '3', '4', '5']);
+  assert.equal(judge(first, '3').status, 'correct');
+  assert.equal(judge(first, '1').status, 'wrong');
+  const vertex = doc.questions.find((item) => item.number === '6');
+  assert.match(vertex.options[0].text, /2,\s*-2/);
+  const multi = doc.questions.find((item) => item.number === '14');
+  assert.equal(multi.type, 'multi');
+  assert.equal(multi.answer, '1,2,4,5');
+  assert.equal(judge(multi, ['5', '1', '4', '2']).status, 'correct');
+  assert.equal(judge(multi, ['1', '2']).status, 'wrong');
+  assert.equal(doc.questions.find((item) => item.number === '13').answer, '1,2,3,4,5');
+  const roots = doc.questions.find((item) => item.number === '21');
+  assert.equal(roots.type, 'cloze');
+  assert.equal(roots.blanks, 2);
+  assert.equal(judge(roots, ['-2', '4']).status, 'correct');
+  assert.equal(doc.questions.find((item) => item.number === '19').answer, '-7');
+  assert.equal(doc.questions.find((item) => item.number === '24').answer, 'i');
+  assert.equal(doc.questions.find((item) => item.number === '25').type, 'short');
+  assert.equal(doc.questions.find((item) => item.number === '25').answer, '');
+  const lesson = parseDocument(readSample('math-g1-ch2.md'));
+  assert.equal(lesson.title.includes('多項式函數'), true);
+  const notes = lesson.blocks.filter((block) => block.kind === 'note').map((block) => block.raw).join('\n');
+  assert.match(notes, /本章學習目標/);
+  assert.equal(notes.includes('1. 理解函數與多項式的基本名詞'), true);
+});
+
 test('投影片範例只認出兩題，編號清單仍是筆記', () => {
   const doc = parseDocument(readSample('slide.md'));
   assert.deepEqual(doc.questions.map((item) => item.number), ['1', '11']);
